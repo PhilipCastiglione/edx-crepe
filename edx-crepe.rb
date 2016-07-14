@@ -3,8 +3,7 @@ require "json"
 require "csv"
 
 class CourseImporter
-  EDX_ROOT_URL = "https://www.edx.org".freeze
-  EDX_ENDPOINT = URI("#{EDX_ROOT_URL}/search/api/all").freeze
+  EDX_ENDPOINT = URI("https://www.edx.org/search/api/all").freeze
 
   attr_accessor :courses
 
@@ -12,18 +11,34 @@ class CourseImporter
     self.courses = import_courses
   end
 
+  private
+
   def import_courses
     JSON.parse Net::HTTP.get(EDX_ENDPOINT)
+  end
+end
+
+class CSVGenerator
+  EDX_ROOT_URL = "https://www.edx.org".freeze
+
+  attr_accessor :records
+
+  def initialize(records)
+    self.records = records
   end
 
   def generate_csv
     CSV.open("./csvs/#{Time.now.to_i}.csv", "w") do |csv|
-      csv << row_headers(courses.first.keys)
-      courses.each { |c| csv << transform_row(c.values) }
+      csv << row_headers(records.first.keys)
+
+      records.each do |r|
+        csv << transform_row(r.values) if in_english?(r)
+      end
     end
   end
 
-  # minor transformations to make headers more intelligible
+  private
+
   def row_headers(headers)
     headers.map do |h|
       case h
@@ -39,15 +54,14 @@ class CourseImporter
     end
   end
 
-  # transform row output to more convenient types
   def transform_row(row)
     row.map do |r|
       if r.is_a? Array
         transform_array(r)
       elsif r.is_a? Hash
-        EDX_ROOT_URL + r["src"]
-      elsif r.is_a?(Fixnum) && r > 1000000000 # hacky, this will be a time
-        Time.at(r).strftime('%B %-d, %-Y')
+        transform_image_url(r)
+      elsif r.is_a?(Fixnum) && r > 1000000000 # hacky, should work until edx has more than a billion courses
+        transform_time(r)
       else
         r
       end
@@ -58,7 +72,50 @@ class CourseImporter
     arr.map! { |i| "\"#{i}\"" } if arr.all? { |i| i.is_a? Fixnum }
     arr.join(",")
   end
+
+  def transform_image_url(r)
+    EDX_ROOT_URL + r["src"]
+  end
+
+  def transform_time(r)
+    Time.at(r).strftime('%B %-d, %-Y')
+  end
+
+  def in_english?(record)
+    record["languages"].map(&:downcase).include?("english")
+  end
+end
+
+class CSVPivotGenerator < CSVGenerator
+  PIVOT_HEADERS = %w(course_name schools level start availability subjects types).freeze
+  PIVOT_COLUMNS = %w(l schools level start availability subjects types).freeze
+
+  def generate_csv
+    CSV.open("./csvs/#{Time.now.to_i}_pivot.csv", "w") do |csv|
+      csv << selected_row_headers(records.first.keys)
+
+      records.each do |r|
+        r["subjects"].each { |s| csv << transform_pivot_row(r, s) } if in_english?(r)
+      end
+    end
+  end
+
+  private
+
+  def selected_row_headers(headers)
+    row_headers(headers).select { |h| PIVOT_HEADERS.include?(h) }
+  end
+
+  def transform_pivot_row(row, subject)
+    row.merge!("subjects" => subject)
+
+    PIVOT_COLUMNS.map { |c| Array(row[c]).join(",") }
+  end
 end
 
 c = CourseImporter.new
-c.generate_csv
+csv = CSVGenerator.new(c.courses)
+pivot_csv = CSVPivotGenerator.new(c.courses)
+
+csv.generate_csv
+pivot_csv.generate_csv
