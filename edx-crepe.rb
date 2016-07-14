@@ -78,7 +78,7 @@ class CSVGenerator
   end
 
   def transform_time(r)
-    Time.at(r).strftime('%B %-d, %-Y')
+    Time.at(r).strftime("%B %-d, %-Y")
   end
 
   def in_english?(record)
