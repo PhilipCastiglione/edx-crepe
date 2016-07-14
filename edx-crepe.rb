@@ -113,9 +113,16 @@ class CSVPivotGenerator < CSVGenerator
   end
 end
 
+puts "BEGIN BY COMBINING FLOUR, MILK, EGGS AND SUGAR WITH A PINCH OF SALT"
 c = CourseImporter.new
+
+puts "BLEND UNTIL SMOOTH"
 csv = CSVGenerator.new(c.courses)
+puts "REST FOR 30 MINUTES AT ROOM TEMPERATURE"
 pivot_csv = CSVPivotGenerator.new(c.courses)
 
+puts "BUTTER A PAN AND FRY THE MIXTURE IN BATCHES UNTIL EACH CREPE IS LIGHTLY GOLDEN"
 csv.generate_csv
+puts "TRANSFER TO A PLATE AND COVER WITH FOIL UNTIL THE LAST CREPE IS COMPLETE"
 pivot_csv.generate_csv
+puts "YOUR CREPES ARE READY TO ENJOY"
